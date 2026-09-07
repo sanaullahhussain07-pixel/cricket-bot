@@ -4,8 +4,8 @@ import threading
 import requests
 from flask import Flask
 from bs4 import BeautifulSoup
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 
 # --- KEEP-ALIVE FLASK SERVER ---
 app = Flask('')
@@ -22,7 +22,6 @@ threading.Thread(target=run_flask, daemon=True).start()
 
 # --- BOT CONFIGURATION ---
 BOT_TOKEN = "8988347697:AAE-GfG-S_2kfyjMMDd-535d5Yuurjbja1w"
-BASE_URL = "https://96ex.one"
 
 # --- SCRAPER FUNCTION ---
 def scrape_market_data(match_url):
@@ -67,32 +66,32 @@ async def monitor_loop(context: ContextTypes.DEFAULT_TYPE):
 
 # --- COMMAND HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Welcome! Use /matches to view live cricket games and select one for live market monitoring.")
+    await update.message.reply_text(
+        "👋 Welcome!\n\n"
+        "To track any live match, simply send:\n"
+        "`/track <MATCH_URL>`\n\n"
+        "Example:\n"
+        "`/track https://96ex.one/game_play`",
+        parse_mode="Markdown"
+    )
 
-async def matches(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    sample_matches = [
-        {"name": "🏏 Live Match 1", "url": f"{BASE_URL}/game_play_1"},
-        {"name": "🏏 Live Match 2", "url": f"{BASE_URL}/game_play_2"},
-    ]
+async def track(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.message.chat_id
     
-    keyboard = [[InlineKeyboardButton(m["name"], callback_data=m["url"])] for m in sample_matches]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_text("👇 **Select a live match to monitor market load every 10 seconds:**", reply_markup=reply_markup, parse_mode="Markdown")
+    if not context.args:
+        await update.message.reply_text("⚠️ Please provide a URL!\nExample: `/track https://96ex.one/game_play`", parse_mode="Markdown")
+        return
 
-async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+    match_url = context.args[0]
     
-    match_url = query.data
-    chat_id = query.message.chat_id
-    
+    # Cancel previous monitoring if running
     current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
     for job in current_jobs:
         job.schedule_removal()
         
+    # Start tracking new URL
     context.job_queue.run_repeating(monitor_loop, interval=10, first=1, chat_id=chat_id, data=match_url, name=str(chat_id))
-    await query.edit_message_text(text=f"✅ **Started live market monitoring for:**\n{match_url}\n\nUpdates will arrive every 10 seconds. Send /stop to pause.", parse_mode="Markdown")
+    await update.message.reply_text(f"✅ **Started live market monitoring for:**\n{match_url}\n\nUpdates will arrive every 10 seconds. Send /stop to pause.", parse_mode="Markdown")
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.message.chat_id
@@ -109,9 +108,8 @@ def main():
     application = Application.builder().token(BOT_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("matches", matches))
+    application.add_handler(CommandHandler("track", track))
     application.add_handler(CommandHandler("stop", stop))
-    application.add_handler(CallbackQueryHandler(button_click))
     
     application.run_polling()
 
