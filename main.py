@@ -19,9 +19,9 @@ def run_flask():
     app.run(host='0.0.0.0', port=port)
 
 threading.Thread(target=run_flask, daemon=True).start()
-​BOT_TOKEN = "8988347697:AAE-GfG-S_2kfyjMMDd-535d5Yuurjbja1w"
+
 # --- BOT CONFIGURATION ---
-BOT_TOKEN = "8988347697:AAE-GfG-S_2kfyjMMDd"
+BOT_TOKEN = "8988347697:AAE-GfG-S_2kfyjMMDd-535d5Yuurjbja1w"
 BASE_URL = "https://96ex.one"
 
 # --- SCRAPER FUNCTION ---
@@ -36,7 +36,6 @@ def scrape_market_data(match_url):
             
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Scrape available market fields safely
         total_matched = soup.find(class_="matched-val")
         total_matched = total_matched.text.strip() if total_matched else "Data unavailable"
         
@@ -71,7 +70,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Welcome! Use /matches to view live cricket games and select one for live market monitoring.")
 
 async def matches(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Match links menu
     sample_matches = [
         {"name": "🏏 Live Match 1", "url": f"{BASE_URL}/game_play_1"},
         {"name": "🏏 Live Match 2", "url": f"{BASE_URL}/game_play_2"},
@@ -89,12 +87,10 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     match_url = query.data
     chat_id = query.message.chat_id
     
-    # Remove existing jobs for this user
     current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
     for job in current_jobs:
         job.schedule_removal()
         
-    # Start repeating job every 10 seconds
     context.job_queue.run_repeating(monitor_loop, interval=10, first=1, chat_id=chat_id, data=match_url, name=str(chat_id))
     await query.edit_message_text(text=f"✅ **Started live market monitoring for:**\n{match_url}\n\nUpdates will arrive every 10 seconds. Send /stop to pause.", parse_mode="Markdown")
 
