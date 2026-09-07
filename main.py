@@ -19,7 +19,7 @@ def run_flask():
     app.run(host='0.0.0.0', port=port)
 
 threading.Thread(target=run_flask, daemon=True).start()
-
+​BOT_TOKEN = "8988347697:AAE-GfG-S_2kfyjMMDd-535d5Yuurjbja1w"
 # --- BOT CONFIGURATION ---
 BOT_TOKEN = "8988347697:AAE-GfG-S_2kfyjMMDd"
 BASE_URL = "https://96ex.one"
