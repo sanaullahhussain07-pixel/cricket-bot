@@ -26,29 +26,36 @@ BASE_URL = "https://96ex.one"
 
 # --- SCRAPER FUNCTION ---
 def scrape_market_data(match_url):
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+    }
     try:
         response = requests.get(match_url, headers=headers, timeout=10)
+        if response.status_code != 200:
+            return f"⚠️ Server returned status code {response.status_code}"
+            
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Extracts market values (scrapes available elements or defaults)
+        # Scrape available market fields safely
         total_matched = soup.find(class_="matched-val")
-        total_matched = total_matched.text.strip() if total_matched else "N/A"
+        total_matched = total_matched.text.strip() if total_matched else "Data unavailable"
         
         back_liquidity = soup.find(class_="back-depth")
-        back_liquidity = back_liquidity.text.strip() if back_liquidity else "N/A"
+        back_liquidity = back_liquidity.text.strip() if back_liquidity else "Data unavailable"
         
         lay_liquidity = soup.find(class_="lay-depth")
-        lay_liquidity = lay_liquidity.text.strip() if lay_liquidity else "N/A"
+        lay_liquidity = lay_liquidity.text.strip() if lay_liquidity else "Data unavailable"
 
-        return f"""📊 **IN-DEPTH MARKET ANALYSIS**
-🏟️ **Match:** {match_url.split('/')[-1].replace('_', ' ').title()}
-💰 **Total Matched Money:** {total_matched}
-🟢 **Money Waiting to Back:** {back_liquidity}
-🔴 **Money Waiting to Lay:** {lay_liquidity}
-⏱️ **Updated:** {time.strftime('%H:%M:%S')}"""
+        return (
+            f"📊 **IN-DEPTH MARKET ANALYSIS**\n"
+            f"🏟️ **Target:** {match_url}\n"
+            f"💰 **Total Matched Money:** {total_matched}\n"
+            f"🟢 **Money Waiting to Back:** {back_liquidity}\n"
+            f"🔴 **Money Waiting to Lay:** {lay_liquidity}\n"
+            f"⏱️ **Updated:** {time.strftime('%H:%M:%S IST')}"
+        )
     except Exception as e:
-        return f"⚠️ Error scraping market data: {e}"
+        return f"⚠️ Scraping error: {str(e)}"
 
 # --- MONITORING LOOP ---
 async def monitor_loop(context: ContextTypes.DEFAULT_TYPE):
@@ -64,17 +71,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Welcome! Use /matches to view live cricket games and select one for live market monitoring.")
 
 async def matches(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Live matches configuration (Add/update match URLs here)
+    # Match links menu
     sample_matches = [
-        {"name": "Match 1: Live Cricket Game A", "url": f"{BASE_URL}/game_play_1"},
-        {"name": "Match 2: Live Cricket Game B", "url": f"{BASE_URL}/game_play_2"},
+        {"name": "🏏 Live Match 1", "url": f"{BASE_URL}/game_play_1"},
+        {"name": "🏏 Live Match 2", "url": f"{BASE_URL}/game_play_2"},
     ]
     
-    keyboard = []
-    for m in sample_matches:
-        keyboard.append([InlineKeyboardButton(m["name"], callback_data=m["url"])])
-    
+    keyboard = [[InlineKeyboardButton(m["name"], callback_data=m["url"])] for m in sample_matches]
     reply_markup = InlineKeyboardMarkup(keyboard)
+    
     await update.message.reply_text("👇 **Select a live match to monitor market load every 10 seconds:**", reply_markup=reply_markup, parse_mode="Markdown")
 
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -84,12 +89,12 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     match_url = query.data
     chat_id = query.message.chat_id
     
-    # Remove any existing monitoring jobs for this chat
+    # Remove existing jobs for this user
     current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
     for job in current_jobs:
         job.schedule_removal()
         
-    # Schedule automated tracking every 10 seconds
+    # Start repeating job every 10 seconds
     context.job_queue.run_repeating(monitor_loop, interval=10, first=1, chat_id=chat_id, data=match_url, name=str(chat_id))
     await query.edit_message_text(text=f"✅ **Started live market monitoring for:**\n{match_url}\n\nUpdates will arrive every 10 seconds. Send /stop to pause.", parse_mode="Markdown")
 
