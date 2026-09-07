@@ -2,17 +2,17 @@ import os
 import time
 import threading
 import asyncio
-import requests
 from flask import Flask
+from curl_cffi import requests
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# --- KEEP-ALIVE SERVER FOR RENDER ---
+# --- KEEP-ALIVE FLASK SERVER ---
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "Bot status: Running"
+    return "Bot status: Active"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -23,21 +23,24 @@ threading.Thread(target=run_flask, daemon=True).start()
 # --- CONFIGURATION ---
 BOT_TOKEN = "8988347697:AAE-GfG-S_2kfyjMMDd-535d5Yuurjbja1w"
 
-# --- SCRAPER ENGINE ---
+# --- SCRAPER USING BROWSER TLS IMPERSONATION ---
 def fetch_market_load(market_url):
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/115.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
         'Referer': 'https://96ex.one/',
-        'Accept': 'application/json, text/plain, */*'
+        'Origin': 'https://96ex.one'
     }
     try:
-        response = requests.get(market_url, headers=headers, timeout=8)
+        # Impersonate Chrome to bypass Cloudflare 403 blocks
+        response = requests.get(market_url, headers=headers, impersonate="chrome120", timeout=10)
+        
         if response.status_code != 200:
             return f"⚠️ Endpoint error (Status Code: {response.status_code})"
             
         data = response.json()
         
-        # Pull live values from JSON response
         matched_val = data.get("totalMatched", "N/A") if isinstance(data, dict) else "N/A"
         back_val = data.get("backDepth", "N/A") if isinstance(data, dict) else "N/A"
         lay_val = data.get("layDepth", "N/A") if isinstance(data, dict) else "N/A"
@@ -71,14 +74,12 @@ async def track(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     market_url = context.args[0]
     
-    # Remove existing monitoring jobs for this user
     current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
     for job in current_jobs:
         job.schedule_removal()
         
-    # Schedule repeating updates every 10 seconds
     context.job_queue.run_repeating(send_updates, interval=10, first=1, chat_id=chat_id, data=market_url, name=str(chat_id))
-    await update.message.reply_text("✅ **10-Second Market Load Tracking Activated!**\nSend /stop anytime to pause updates.", parse_mode="Markdown")
+    await update.message.reply_text("✅ **10-Second Market Tracking Activated!**\nSend /stop to pause updates.", parse_mode="Markdown")
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.message.chat_id
@@ -88,7 +89,7 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
             job.schedule_removal()
         await update.message.reply_text("⏹️ Monitoring stopped.")
     else:
-        await update.message.reply_text("No active monitoring session running.")
+        await update.message.reply_text("No active monitoring session.")
 
 # --- MAIN EXECUTION ---
 def main():
